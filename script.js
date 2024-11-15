@@ -40,9 +40,7 @@ const languages = {
 function TextProcessor() {
     const [isProcessing, setIsProcessing] = React.useState(false);
     const [currentLang, setCurrentLang] = React.useState('zh');
-    const CHUNK_SIZE = 1000;
-    const BLOCK_SIZE = 10000;
-    const MAX_PARALLEL = 3;
+    const CHUNK_SIZE = 10000;
 
     async function getKey(password) {
         const defaultKey = 'DefaultFixedKey12345';
@@ -89,99 +87,41 @@ function TextProcessor() {
         textarea.style.height = textarea.scrollHeight + 'px';
     }
 
-    function uint8ArrayToBase64Url(uint8Array) {
-        return btoa(String.fromCharCode(...uint8Array))
-            .replace(/\+/g, '-')
-            .replace(/\//g, '_')
-            .replace(/=+$/, '');
-    }
-
-    function base64UrlToUint8Array(base64Url) {
-        const base64 = base64Url
-            .replace(/-/g, '+')
-            .replace(/_/g, '/')
-            .padEnd(base64Url.length + (4 - base64Url.length % 4) % 4, '=');
-        return new Uint8Array(
-            atob(base64).split('').map(char => char.charCodeAt(0))
-        );
-    }
-
-    async function compressText(text) {
-        try {
-            const textBytes = new TextEncoder().encode(text);
-            const cs = new CompressionStream('deflate');
-            const writer = cs.writable.getWriter();
-            writer.write(textBytes);
-            writer.close();
-            const compressedChunks = [];
-            const reader = cs.readable.getReader();
-            while (true) {
-                const {value, done} = await reader.read();
-                if (done) break;
-                compressedChunks.push(value);
+    async function processInChunks(text, password, isEncrypt) {
+        if (isEncrypt) {
+            const chunks = [];
+            for (let i = 0; i < text.length; i += CHUNK_SIZE) {
+                chunks.push(text.slice(i, i + CHUNK_SIZE));
             }
-            const totalLength = compressedChunks.reduce((acc, chunk) => acc + chunk.length, 0);
-            const compressed = new Uint8Array(totalLength);
-            let offset = 0;
-            for (const chunk of compressedChunks) {
-                compressed.set(chunk, offset);
-                offset += chunk.length;
-            }
-            return compressed;
-        } catch (error) {
-            return new TextEncoder().encode(text);
-        }
-    }
 
-    async function decompressData(data) {
-        try {
-            const ds = new DecompressionStream('deflate');
-            const writer = ds.writable.getWriter();
-            writer.write(data);
-            writer.close();
-            const decompressedChunks = [];
-            const reader = ds.readable.getReader();
-            while (true) {
-                const {value, done} = await reader.read();
-                if (done) break;
-                decompressedChunks.push(value);
-            }
-            const totalLength = decompressedChunks.reduce((acc, chunk) => acc + chunk.length, 0);
-            const decompressed = new Uint8Array(totalLength);
-            let offset = 0;
-            for (const chunk of decompressedChunks) {
-                decompressed.set(chunk, offset);
-                offset += chunk.length;
-            }
-            return new TextDecoder().decode(decompressed);
-        } catch (error) {
-            return new TextDecoder().decode(data);
-        }
-    }
-
-    async function processBlock(text, password, isEncrypt) {
-        const chunks = [];
-        for (let i = 0; i < text.length; i += CHUNK_SIZE) {
-            chunks.push(text.slice(i, i + CHUNK_SIZE));
-        }
-        
-        const results = [];
-        for (let i = 0; i < chunks.length; i += MAX_PARALLEL) {
-            const batch = chunks.slice(i, i + MAX_PARALLEL);
-            const batchResults = await Promise.all(batch.map(async chunk => {
+            let result = '';
+            for (let i = 0; i < chunks.length; i++) {
+                const chunk = chunks[i];
                 const key = await getKey(password);
-                if (isEncrypt) {
-                    const compressedData = await compressText(chunk);
-                    const iv = crypto.getRandomValues(new Uint8Array(12));
-                    const encrypted = await crypto.subtle.encrypt(
-                        { name: 'AES-GCM', iv },
-                        key,
-                        compressedData
+                const iv = crypto.getRandomValues(new Uint8Array(12));
+                const encoded = new TextEncoder().encode(chunk);
+                const encrypted = await crypto.subtle.encrypt(
+                    { name: 'AES-GCM', iv },
+                    key,
+                    encoded
+                );
+                const combined = new Uint8Array([...iv, ...new Uint8Array(encrypted)]);
+                result += btoa(String.fromCharCode(...combined)) + '|';
+            }
+            return result;
+        } else {
+            const chunks = text.split('|');
+            let result = '';
+            
+            for (let i = 0; i < chunks.length; i++) {
+                const chunk = chunks[i];
+                if (!chunk) continue;
+                
+                try {
+                    const key = await getKey(password);
+                    const combined = new Uint8Array(
+                        atob(chunk).split('').map(char => char.charCodeAt(0))
                     );
-                    const combined = new Uint8Array([...iv, ...new Uint8Array(encrypted)]);
-                    return uint8ArrayToBase64Url(combined);
-                } else {
-                    const combined = base64UrlToUint8Array(chunk);
                     const iv = combined.slice(0, 12);
                     const encrypted = combined.slice(12);
                     const decrypted = await crypto.subtle.decrypt(
@@ -189,12 +129,14 @@ function TextProcessor() {
                         key,
                         encrypted
                     );
-                    return await decompressData(new Uint8Array(decrypted));
+                    result += new TextDecoder().decode(decrypted);
+                } catch (error) {
+                    console.error(error);
+                    throw new Error(languages[currentLang].messages.processingError);
                 }
-            }));
-            results.push(...batchResults);
+            }
+            return result;
         }
-        return results.join(isEncrypt ? '.' : '');
     }
 
     async function handleProcess(isEncrypt) {
@@ -211,37 +153,13 @@ function TextProcessor() {
         setIsProcessing(true);
 
         try {
-            let result = '';
-            if (isEncrypt) {
-                const blocks = [];
-                for (let i = 0; i < text.length; i += BLOCK_SIZE) {
-                    const block = text.slice(i, i + BLOCK_SIZE);
-                    const processed = await processBlock(block, password, true);
-                    blocks.push(processed);
-                }
-                result = blocks.join('|');
-            } else {
-                if (text.includes('|')) {
-                    const blocks = text.split('|');
-                    const results = [];
-                    for (const block of blocks) {
-                        if (!block) continue;
-                        const processed = await processBlock(block, password, false);
-                        results.push(processed);
-                    }
-                    result = results.join('');
-                } else {
-                    result = await processBlock(text, password, false);
-                }
-            }
-
+            const result = await processInChunks(text, password, isEncrypt);
             const resultTextarea = document.getElementById('result');
             resultTextarea.value = result;
             autoResize(resultTextarea);
             alert(languages[currentLang].messages.success);
         } catch (error) {
-            console.error(error);
-            alert(languages[currentLang].messages.processingError);
+            alert(error.message);
         } finally {
             setIsProcessing(false);
         }
@@ -314,11 +232,14 @@ function TextProcessor() {
 function switchLanguage(lang) {
     const content = languages[lang];
     document.getElementById('app-title').textContent = content.title;
+    
     window.currentLang = lang;
+    
     ReactDOM.render(
         React.createElement(TextProcessor),
         document.getElementById('root')
     );
+
     document.querySelectorAll('.lang-btn').forEach(btn => {
         if (lang === 'zh') {
             btn.classList.toggle('active', btn.textContent === '中文');
@@ -328,6 +249,7 @@ function switchLanguage(lang) {
     });
 }
 
+// Initialize
 ReactDOM.render(
     React.createElement(TextProcessor),
     document.getElementById('root')
