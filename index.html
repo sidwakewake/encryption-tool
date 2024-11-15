@@ -1,46 +1,43 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>加密与解密工具</title>
+    <title>压缩加密工具</title>
     <link rel="stylesheet" href="style.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 </head>
 <body>
     <div class="container">
         <div class="language-switch">
             <button onclick="switchLanguage('zh')">中文</button>
-            <button onclick="switchLanguage('ja')">日本語</button>
             <button onclick="switchLanguage('en')">English</button>
         </div>
 
-        <h1 id="app-title">加密与解密工具</h1>
+        <h1 id="app-title">压缩加密工具</h1>
 
         <div class="input-group">
-            <label for="inputText" id="input-label">请输入文本:</label>
+            <label id="input-label">请输入文本:</label>
             <textarea id="inputText" placeholder="请输入要加密或解密的文本"></textarea>
-            <button class="small-button" onclick="copyToClipboard('inputText')" id="input-copy-btn">复制</button>
         </div>
 
         <div class="input-group">
-            <label for="password" id="password-label">密码 (可选):</label>
-            <input type="text" id="password" placeholder="输入密码或自动生成">
-            <div class="button-row">
-                <button class="medium-button" onclick="generatePassword()" id="password-generate-btn">生成密码</button>
-                <button class="small-button" onclick="copyToClipboard('password')" id="password-copy-btn">复制</button>
+            <label id="password-label">密码 (可选):</label>
+            <div class="password-row">
+                <input type="text" id="password" placeholder="输入密码或自动生成">
+                <button onclick="generatePassword()" id="generate-btn">生成密码</button>
             </div>
         </div>
 
-        <div class="button-group">
-            <button onclick="encryptText()" id="encrypt-btn">加密</button>
-            <button onclick="decryptText()" id="decrypt-btn">解密</button>
+        <div class="input-group">
+            <div class="result-header">
+                <label id="result-label">结果:</label>
+                <button onclick="copyToClipboard()" id="copy-btn">复制</button>
+            </div>
+            <textarea id="result" readonly placeholder="加密或解密结果将显示在此"></textarea>
         </div>
 
-        <div class="input-group">
-            <label for="resultText" id="result-label">结果:</label>
-            <textarea id="resultText" readonly placeholder="加密或解密结果将显示在此"></textarea>
-            <button class="small-button" onclick="copyToClipboard('resultText')" id="result-copy-btn">复制</button>
+        <div class="button-group">
+            <button onclick="handleEncrypt()" id="encrypt-btn">压缩并加密</button>
+            <button onclick="handleDecrypt()" id="decrypt-btn">解密并解压</button>
         </div>
     </div>
     <script src="script.js"></script>
