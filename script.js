@@ -1,84 +1,9 @@
-// 固定キー（パスワードなしの場合に使用）
-const defaultKey = CryptoJS.enc.Utf8.parse("DefaultFixedKey12345"); // 16文字固定
+const defaultKey = CryptoJS.enc.Utf8.parse("DefaultFixedKey12345");
 
-// ランダムなパスワードを生成
-function generatePassword() {
-    const password = Array(12).fill(0).map(() =>
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789".charAt(
-            Math.floor(Math.random() * 62)
-        )
-    ).join('');
-    document.getElementById("password").value = password;
-}
+// 定义全局变量用于调整压缩和解压次数
+const compressionIterations = 3; // 可根据需要调整压缩次数
 
-// コピー機能
-function copyToClipboard(elementId) {
-    const textElement = document.getElementById(elementId);
-    const textToCopy = textElement.value || textElement.innerText;
-    if (!textToCopy) {
-        alert(languageContent.alerts.copyError);
-        return;
-    }
-    navigator.clipboard.writeText(textToCopy).then(() => {
-        alert(languageContent.alerts.copySuccess);
-    }).catch(err => {
-        alert(languageContent.alerts.copyFailure);
-        console.error(err);
-    });
-}
-
-// 暗号化処理
-function encryptText() {
-    const text = document.getElementById("inputText").value.trim();
-    const passwordInput = document.getElementById("password").value.trim();
-
-    if (!text) {
-        alert(languageContent.alerts.noText);
-        return;
-    }
-
-    const key = passwordInput
-        ? CryptoJS.enc.Utf8.parse(CryptoJS.MD5(passwordInput).toString().slice(0, 16))
-        : defaultKey;
-
-    const encrypted = CryptoJS.AES.encrypt(text, key, {
-        mode: CryptoJS.mode.ECB,
-        padding: CryptoJS.pad.Pkcs7
-    }).toString();
-
-    document.getElementById("resultText").value = encrypted;
-    alert(languageContent.alerts.encryptionSuccess);
-}
-
-// 復号処理
-function decryptText() {
-    const encryptedText = document.getElementById("inputText").value.trim();
-    const passwordInput = document.getElementById("password").value.trim();
-
-    if (!encryptedText) {
-        alert(languageContent.alerts.noEncryptedText);
-        return;
-    }
-
-    const key = passwordInput
-        ? CryptoJS.enc.Utf8.parse(CryptoJS.MD5(passwordInput).toString().slice(0, 16))
-        : defaultKey;
-
-    try {
-        const decrypted = CryptoJS.AES.decrypt(encryptedText, key, {
-            mode: CryptoJS.mode.ECB,
-            padding: CryptoJS.pad.Pkcs7
-        }).toString(CryptoJS.enc.Utf8);
-
-        document.getElementById("resultText").value = decrypted;
-    } catch (e) {
-        document.getElementById("resultText").value = languageContent.alerts.decryptionFailure;
-    }
-}
-
-// 言語切り替え機能
-let currentLanguage = 'zh'; // デフォルト言語は中国語
-
+// 多语言配置
 const languages = {
     zh: {
         title: "加密与解密工具",
@@ -97,39 +22,13 @@ const languages = {
             copy: "复制"
         },
         alerts: {
-            copyError: "没有内容可复制。",
-            copySuccess: "已复制到剪贴板！",
-            copyFailure: "复制失败。",
-            noText: "请输入要加密的文本。",
-            noEncryptedText: "请输入要解密的文本。",
-            encryptionSuccess: "加密成功！",
-            decryptionFailure: "解密失败，请检查密码。"
-        }
-    },
-    ja: {
-        title: "暗号化・復号ツール",
-        inputLabel: "テキストを入力:",
-        passwordLabel: "パスワード（任意）:",
-        resultLabel: "結果:",
-        placeholders: {
-            inputText: "暗号化または復号化するテキストを入力してください",
-            password: "パスワードを入力または自動生成",
-            resultText: "暗号化または復号化された結果が表示されます"
-        },
-        buttons: {
-            encrypt: "暗号化",
-            decrypt: "復号",
-            generatePassword: "パスワード生成",
-            copy: "コピー"
-        },
-        alerts: {
-            copyError: "コピーする内容がありません。",
-            copySuccess: "クリップボードにコピーしました！",
-            copyFailure: "コピーに失敗しました。",
-            noText: "暗号化するテキストを入力してください。",
-            noEncryptedText: "復号する暗号化テキストを入力してください。",
-            encryptionSuccess: "暗号化が成功しました！",
-            decryptionFailure: "復号に失敗しました。正しいパスワードを入力してください。"
+            noText: "请输入要加密的文本！",
+            noEncryptedText: "请输入要解密的文本！",
+            compressionFailed: "压缩失败！",
+            decompressionFailed: "解压失败或密码错误！",
+            copySuccess: "复制成功！",
+            copyFailure: "复制失败！",
+            noContentToCopy: "没有内容可复制！"
         }
     },
     en: {
@@ -149,40 +48,164 @@ const languages = {
             copy: "Copy"
         },
         alerts: {
-            copyError: "No content to copy.",
-            copySuccess: "Copied to clipboard!",
-            copyFailure: "Failed to copy.",
-            noText: "Please enter text to encrypt.",
-            noEncryptedText: "Please enter text to decrypt.",
-            encryptionSuccess: "Encryption successful!",
-            decryptionFailure: "Decryption failed. Please check your password."
+            noText: "Please enter text to encrypt!",
+            noEncryptedText: "Please enter text to decrypt!",
+            compressionFailed: "Compression failed!",
+            decompressionFailed: "Decompression failed or incorrect password!",
+            copySuccess: "Copied successfully!",
+            copyFailure: "Copy failed!",
+            noContentToCopy: "No content to copy!"
         }
     }
 };
 
+// 当前语言配置，默认中文
+let languageContent = languages.zh;
+
+// 切换语言
 function switchLanguage(lang) {
-    currentLanguage = lang;
-    const content = languages[lang];
+    languageContent = languages[lang];
 
-    document.getElementById("app-title").innerText = content.title;
-    document.getElementById("input-label").innerText = content.inputLabel;
-    document.getElementById("password-label").innerText = content.passwordLabel;
-    document.getElementById("result-label").innerText = content.resultLabel;
-    document.getElementById("encrypt-btn").innerText = content.buttons.encrypt;
-    document.getElementById("decrypt-btn").innerText = content.buttons.decrypt;
-    document.getElementById("password-generate-btn").innerText = content.buttons.generatePassword;
-    document.getElementById("input-copy-btn").innerText = content.buttons.copy;
-    document.getElementById("password-copy-btn").innerText = content.buttons.copy;
-    document.getElementById("result-copy-btn").innerText = content.buttons.copy;
+    // 更新页面文本
+    document.getElementById("app-title").innerText = languageContent.title;
+    document.getElementById("input-label").innerText = languageContent.inputLabel;
+    document.getElementById("password-label").innerText = languageContent.passwordLabel;
+    document.getElementById("result-label").innerText = languageContent.resultLabel;
 
-    // プレースホルダーを設定
-    document.getElementById("inputText").placeholder = content.placeholders.inputText;
-    document.getElementById("password").placeholder = content.placeholders.password;
-    document.getElementById("resultText").placeholder = content.placeholders.resultText;
+    document.getElementById("inputText").placeholder = languageContent.placeholders.inputText;
+    document.getElementById("password").placeholder = languageContent.placeholders.password;
+    document.getElementById("resultText").placeholder = languageContent.placeholders.resultText;
 
-    languageContent = content;
+    document.getElementById("encrypt-btn").innerText = languageContent.buttons.encrypt;
+    document.getElementById("decrypt-btn").innerText = languageContent.buttons.decrypt;
+    document.getElementById("password-generate-btn").innerText = languageContent.buttons.generatePassword;
+    document.getElementById("input-copy-btn").innerText = languageContent.buttons.copy;
+    document.getElementById("password-copy-btn").innerText = languageContent.buttons.copy;
+    document.getElementById("result-copy-btn").innerText = languageContent.buttons.copy;
 }
 
-// 初期設定で中国語をロード
-let languageContent = languages.zh;
-switchLanguage('zh');
+// 文本复制功能
+function copyToClipboard(elementId) {
+    const textElement = document.getElementById(elementId);
+    const textToCopy = textElement.value || textElement.innerText;
+    if (!textToCopy) {
+        alert(languageContent.alerts.noContentToCopy);
+        return;
+    }
+    navigator.clipboard.writeText(textToCopy).then(() => {
+        alert(languageContent.alerts.copySuccess);
+    }).catch(err => {
+        alert(languageContent.alerts.copyFailure);
+        console.error(err);
+    });
+}
+
+// 自动调整文本框大小（仅限结果框）
+function autoResizeTextArea(elementId) {
+    const textarea = document.getElementById(elementId);
+    textarea.style.height = "auto";
+    textarea.style.height = textarea.scrollHeight + "px";
+}
+
+// 随机生成密码
+function generatePassword() {
+    const password = Array(12)
+        .fill(0)
+        .map(() =>
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789".charAt(
+                Math.floor(Math.random() * 62)
+            )
+        )
+        .join('');
+    document.getElementById("password").value = password;
+}
+
+// 多次压缩文本
+function compressTextMultiple(plainText, iterations) {
+    let data = new TextEncoder().encode(plainText); // 转换为 UTF-8 编码
+    try {
+        for (let i = 0; i < iterations; i++) {
+            data = pako.deflate(data);
+        }
+        return data; // 返回 Uint8Array
+    } catch (e) {
+        console.error("Compression failed:", e);
+        throw new Error(languageContent.alerts.compressionFailed);
+    }
+}
+
+// 多次解压文本
+function decompressTextMultiple(compressedData, iterations) {
+    let data = compressedData; // 输入数据为 Uint8Array
+    try {
+        for (let i = 0; i < iterations; i++) {
+            data = pako.inflate(data);
+        }
+        return new TextDecoder().decode(data); // 转换回字符串
+    } catch (e) {
+        console.error("Decompression failed:", e);
+        throw new Error(languageContent.alerts.decompressionFailed);
+    }
+}
+
+// 加密文本
+function encryptText() {
+    const text = document.getElementById("inputText").value.trim();
+    const passwordInput = document.getElementById("password").value.trim();
+
+    if (!text) {
+        alert(languageContent.alerts.noText);
+        return;
+    }
+
+    try {
+        const compressedText = compressTextMultiple(text, compressionIterations); // 使用动态压缩次数
+        const compressedBase64 = btoa(String.fromCharCode.apply(null, compressedText));
+
+        const key = passwordInput
+            ? CryptoJS.enc.Utf8.parse(CryptoJS.MD5(passwordInput).toString().slice(0, 16))
+            : defaultKey;
+
+        const encrypted = CryptoJS.AES.encrypt(compressedBase64, key, {
+            mode: CryptoJS.mode.ECB,
+            padding: CryptoJS.pad.Pkcs7
+        }).toString();
+
+        document.getElementById("resultText").value = encrypted;
+        autoResizeTextArea("resultText");
+    } catch (e) {
+        alert(languageContent.alerts.compressionFailed);
+        console.error("Error during encryption:", e);
+    }
+}
+
+// 解密文本
+function decryptText() {
+    const encryptedText = document.getElementById("inputText").value.trim();
+    const passwordInput = document.getElementById("password").value.trim();
+
+    if (!encryptedText) {
+        alert(languageContent.alerts.noEncryptedText);
+        return;
+    }
+
+    try {
+        const key = passwordInput
+            ? CryptoJS.enc.Utf8.parse(CryptoJS.MD5(passwordInput).toString().slice(0, 16))
+            : defaultKey;
+
+        const decrypted = CryptoJS.AES.decrypt(encryptedText, key, {
+            mode: CryptoJS.mode.ECB,
+            padding: CryptoJS.pad.Pkcs7
+        }).toString(CryptoJS.enc.Utf8);
+
+        const compressedBinary = Uint8Array.from(atob(decrypted), c => c.charCodeAt(0));
+        const decompressedText = decompressTextMultiple(compressedBinary, compressionIterations); // 使用动态解压次数
+
+        document.getElementById("resultText").value = decompressedText;
+        autoResizeTextArea("resultText");
+    } catch (e) {
+        alert(languageContent.alerts.decompressionFailed);
+        console.error("Error during decryption:", e);
+    }
+}
