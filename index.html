@@ -1,56 +1,111 @@
-<!DOCTYPE html>
-<html lang="zh">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>加密与解密工具</title>
-    <link rel="stylesheet" href="style.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
-</head>
-<body>
-    <div class="container">
-        <div class="language-switch">
-            <button onclick="switchLanguage('zh')" id="lang-zh">中文</button>
-            <button onclick="switchLanguage('en')" id="lang-en">English</button>
-        </div>
+const compressionIterations = 3; // 动态压缩次数
 
-        <h1 id="app-title">加密与解密工具</h1>
+// 强制使用用户输入或随机生成的密钥
+function generateEncryptionKey(password) {
+    if (password) {
+        return CryptoJS.enc.Utf8.parse(CryptoJS.MD5(password).toString().slice(0, 16));
+    } else {
+        const randomKey = Array(16)
+            .fill(0)
+            .map(() => String.fromCharCode(Math.floor(Math.random() * 256)))
+            .join('');
+        alert(`未提供密码，已生成临时密钥：${randomKey}`);
+        return CryptoJS.enc.Utf8.parse(randomKey);
+    }
+}
 
-        <!-- 输入文本框 -->
-        <div class="input-group">
-            <label for="inputText" id="input-label">请输入文本:</label>
-            <textarea id="inputText" placeholder="请输入要加密或解密的文本"></textarea>
-            <div class="button-row single-button">
-                <button class="small-button" onclick="copyToClipboard('inputText')" id="input-copy-btn">复制</button>
-            </div>
-        </div>
+// Brotli 压缩和解压逻辑
+function compressText(text, iterations) {
+    let data = new TextEncoder().encode(text);
+    for (let i = 0; i < iterations; i++) {
+        data = pako.deflate(data);
+    }
+    return btoa(String.fromCharCode(...data)); // 转为 Base64
+}
 
-        <!-- 密码框 -->
-        <div class="input-group">
-            <label for="password" id="password-label">密码 (可选):</label>
-            <input type="text" id="password" placeholder="输入密码或自动生成">
-            <div class="button-row">
-                <button class="small-button" onclick="generatePassword()" id="password-generate-btn">生成</button>
-                <button class="small-button" onclick="copyToClipboard('password')" id="password-copy-btn">复制</button>
-            </div>
-        </div>
+function decompressText(base64Text, iterations) {
+    let data = Uint8Array.from(atob(base64Text), c => c.charCodeAt(0));
+    for (let i = 0; i < iterations; i++) {
+        data = pako.inflate(data);
+    }
+    return new TextDecoder().decode(data);
+}
 
-        <!-- 操作按钮 -->
-        <div class="button-group">
-            <button onclick="encryptText()" id="encrypt-btn">加密</button>
-            <button onclick="decryptText()" id="decrypt-btn">解密</button>
-        </div>
+// 加密逻辑
+function encryptText() {
+    const text = document.getElementById("inputText").value.trim();
+    const password = document.getElementById("password").value.trim();
 
-        <!-- 结果框 -->
-        <div class="input-group">
-            <label for="resultText" id="result-label">结果:</label>
-            <div class="button-row single-button">
-                <button class="small-button" onclick="copyToClipboard('resultText')" id="result-copy-btn">复制</button>
-            </div>
-            <textarea id="resultText" readonly placeholder="加密或解密结果将显示在此" oninput="autoResizeTextArea('resultText')"></textarea>
-        </div>
-    </div>
-    <script src="script.js"></script>
-</body>
-</html>
+    if (!text) {
+        alert("请输入要加密的文本！");
+        return;
+    }
+
+    try {
+        const compressedText = compressText(text, compressionIterations);
+        const key = generateEncryptionKey(password);
+
+        // 嵌入元信息（压缩次数）
+        const metadata = `META:${compressionIterations};`;
+        const encrypted = CryptoJS.AES.encrypt(metadata + compressedText, key, {
+            mode: CryptoJS.mode.ECB,
+            padding: CryptoJS.pad.Pkcs7
+        }).toString();
+
+        document.getElementById("resultText").value = encrypted;
+        autoResizeTextArea("resultText");
+    } catch (error) {
+        alert("加密失败！");
+        console.error("Error during encryption:", error);
+    }
+}
+
+// 解密逻辑
+function decryptText() {
+    const encryptedText = document.getElementById("inputText").value.trim();
+    const password = document.getElementById("password").value.trim();
+
+    if (!encryptedText) {
+        alert("请输入要解密的文本！");
+        return;
+    }
+
+    try {
+        const key = generateEncryptionKey(password);
+        const decrypted = CryptoJS.AES.decrypt(encryptedText, key, {
+            mode: CryptoJS.mode.ECB,
+            padding: CryptoJS.pad.Pkcs7
+        }).toString(CryptoJS.enc.Utf8);
+
+        // 提取元信息和数据
+        const [meta, base64Data] = decrypted.split(";");
+        const iterations = parseInt(meta.split(":")[1], 10);
+
+        const decompressedText = decompressText(base64Data, iterations);
+        document.getElementById("resultText").value = decompressedText;
+        autoResizeTextArea("resultText");
+    } catch (error) {
+        alert("解密失败或密码错误！");
+        console.error("Error during decryption:", error);
+    }
+}
+
+// 自动调整文本框大小
+function autoResizeTextArea(elementId) {
+    const textarea = document.getElementById(elementId);
+    textarea.style.height = "auto";
+    textarea.style.height = textarea.scrollHeight + "px";
+}
+
+// 生成随机密码
+function generatePassword() {
+    const password = Array(12)
+        .fill(0)
+        .map(() =>
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789".charAt(
+                Math.floor(Math.random() * 62)
+            )
+        )
+        .join('');
+    document.getElementById("password").value = password;
+}
