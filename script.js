@@ -40,7 +40,8 @@ const languages = {
 function TextProcessor() {
     const [isProcessing, setIsProcessing] = React.useState(false);
     const [currentLang, setCurrentLang] = React.useState('zh');
-    const CHUNK_SIZE = 10000;
+    const CHUNK_SIZE = 5000;
+    const MAX_PARALLEL_CHUNKS = 5;
 
     async function getKey(password) {
         const defaultKey = 'DefaultFixedKey12345';
@@ -87,56 +88,125 @@ function TextProcessor() {
         textarea.style.height = textarea.scrollHeight + 'px';
     }
 
-    async function processInChunks(text, password, isEncrypt) {
-        if (isEncrypt) {
-            const chunks = [];
-            for (let i = 0; i < text.length; i += CHUNK_SIZE) {
-                chunks.push(text.slice(i, i + CHUNK_SIZE));
-            }
+    function uint8ArrayToBase64Url(uint8Array) {
+        return btoa(String.fromCharCode(...uint8Array))
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_')
+            .replace(/=+$/, '');
+    }
 
-            let result = '';
-            for (let i = 0; i < chunks.length; i++) {
-                const chunk = chunks[i];
-                const key = await getKey(password);
-                const iv = crypto.getRandomValues(new Uint8Array(12));
-                const encoded = new TextEncoder().encode(chunk);
-                const encrypted = await crypto.subtle.encrypt(
-                    { name: 'AES-GCM', iv },
-                    key,
-                    encoded
-                );
-                const combined = new Uint8Array([...iv, ...new Uint8Array(encrypted)]);
-                result += btoa(String.fromCharCode(...combined)) + '|';
+    function base64UrlToUint8Array(base64Url) {
+        const base64 = base64Url
+            .replace(/-/g, '+')
+            .replace(/_/g, '/')
+            .padEnd(base64Url.length + (4 - base64Url.length % 4) % 4, '=');
+        return new Uint8Array(
+            atob(base64).split('').map(char => char.charCodeAt(0))
+        );
+    }
+
+    async function compressText(text) {
+        try {
+            const textBytes = new TextEncoder().encode(text);
+            const cs = new CompressionStream('deflate');
+            const writer = cs.writable.getWriter();
+            writer.write(textBytes);
+            writer.close();
+            const compressedChunks = [];
+            const reader = cs.readable.getReader();
+            while (true) {
+                const {value, done} = await reader.read();
+                if (done) break;
+                compressedChunks.push(value);
             }
-            return result;
-        } else {
-            const chunks = text.split('|');
-            let result = '';
-            
-            for (let i = 0; i < chunks.length; i++) {
-                const chunk = chunks[i];
-                if (!chunk) continue;
-                
-                try {
-                    const key = await getKey(password);
-                    const combined = new Uint8Array(
-                        atob(chunk).split('').map(char => char.charCodeAt(0))
-                    );
-                    const iv = combined.slice(0, 12);
-                    const encrypted = combined.slice(12);
-                    const decrypted = await crypto.subtle.decrypt(
+            const totalLength = compressedChunks.reduce((acc, chunk) => acc + chunk.length, 0);
+            const compressed = new Uint8Array(totalLength);
+            let offset = 0;
+            for (const chunk of compressedChunks) {
+                compressed.set(chunk, offset);
+                offset += chunk.length;
+            }
+            return compressed;
+        } catch (error) {
+            console.error('Compression failed:', error);
+            return new TextEncoder().encode(text);
+        }
+    }
+
+    async function decompressData(data) {
+        try {
+            const ds = new DecompressionStream('deflate');
+            const writer = ds.writable.getWriter();
+            writer.write(data);
+            writer.close();
+            const decompressedChunks = [];
+            const reader = ds.readable.getReader();
+            while (true) {
+                const {value, done} = await reader.read();
+                if (done) break;
+                decompressedChunks.push(value);
+            }
+            const totalLength = decompressedChunks.reduce((acc, chunk) => acc + chunk.length, 0);
+            const decompressed = new Uint8Array(totalLength);
+            let offset = 0;
+            for (const chunk of decompressedChunks) {
+                decompressed.set(chunk, offset);
+                offset += chunk.length;
+            }
+            return new TextDecoder().decode(decompressed);
+        } catch (error) {
+            console.error('Decompression failed:', error);
+            return new TextDecoder().decode(data);
+        }
+    }
+
+    async function processChunksBatch(chunks, password, isEncrypt) {
+        const results = [];
+        for (let i = 0; i < chunks.length; i += MAX_PARALLEL_CHUNKS) {
+            const batch = chunks.slice(i, i + MAX_PARALLEL_CHUNKS);
+            const batchPromises = batch.map(async (chunk) => {
+                const key = await getKey(password);
+                if (isEncrypt) {
+                    const compressedData = await compressText(chunk);
+                    const iv = crypto.getRandomValues(new Uint8Array(12));
+                    const encrypted = await crypto.subtle.encrypt(
                         { name: 'AES-GCM', iv },
                         key,
-                        encrypted
+                        compressedData
                     );
-                    result += new TextDecoder().decode(decrypted);
-                } catch (error) {
-                    console.error(error);
-                    throw new Error(languages[currentLang].messages.processingError);
+                    const combined = new Uint8Array([...iv, ...new Uint8Array(encrypted)]);
+                    return uint8ArrayToBase64Url(combined);
+                } else {
+                    try {
+                        const combined = base64UrlToUint8Array(chunk);
+                        const iv = combined.slice(0, 12);
+                        const encrypted = combined.slice(12);
+                        const decrypted = await crypto.subtle.decrypt(
+                            { name: 'AES-GCM', iv },
+                            key,
+                            encrypted
+                        );
+                        return await decompressData(new Uint8Array(decrypted));
+                    } catch (error) {
+                        throw new Error(languages[currentLang].messages.processingError);
+                    }
                 }
-            }
-            return result;
+            });
+
+            const batchResults = await Promise.all(batchPromises);
+            results.push(...batchResults);
         }
+        return results;
+    }
+
+    async function processInChunks(text, password, isEncrypt) {
+        const chunks = isEncrypt 
+            ? Array.from({ length: Math.ceil(text.length / CHUNK_SIZE) }, (_, i) => 
+                text.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE))
+            : text.split('.').filter(chunk => chunk);
+
+        const results = await processChunksBatch(chunks, password, isEncrypt);
+        return isEncrypt ? results.join('.') : results.join('');
     }
 
     async function handleProcess(isEncrypt) {
@@ -249,7 +319,6 @@ function switchLanguage(lang) {
     });
 }
 
-// Initialize
 ReactDOM.render(
     React.createElement(TextProcessor),
     document.getElementById('root')
