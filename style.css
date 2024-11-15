@@ -1,3 +1,4 @@
+
 body {
     font-family: Arial, sans-serif;
     background-color: #f4f4f9;
@@ -53,12 +54,6 @@ textarea[readonly] {
     cursor: not-allowed;
 }
 
-textarea:focus, input:focus {
-    border-color: #007BFF;
-    outline: none;
-    box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
-}
-
 button {
     background-color: #007BFF;
     color: white;
@@ -75,43 +70,23 @@ button:hover {
     background-color: #0056b3;
 }
 
-.language-switch button {
-    background-color: #f4f4f9;
-    color: #007BFF;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-    padding: 5px 10px;
-    cursor: pointer;
-    transition: background-color 0.3s, color 0.3s;
-}
-
-.language-switch button.active {
-    background-color: #007BFF;
-    color: white;
-    border-color: #0056b3;
-}
-
-.language-switch button:hover {
-    background-color: #0056b3;
-    color: white;
-}
-
 .small-button {
     padding: 8px 10px;
     font-size: 12px;
-    margin: 0 5px;
-    flex: 1;
+    margin-left: 5px;
+}
+
+.medium-button {
+    padding: 10px 15px;
+    font-size: 14px;
+    margin-right: 5px;
 }
 
 .button-row {
     display: flex;
-    justify-content: center;
+    justify-content: space-between;
     align-items: center;
     margin-top: 10px;
-}
-
-.button-row.single-button {
-    justify-content: center;
 }
 
 .button-group {
@@ -123,22 +98,4 @@ button:hover {
 
 button {
     flex: 1;
-}
-
-@media (max-width: 480px) {
-    .container {
-        padding: 15px;
-    }
-
-    .button-group {
-        flex-direction: column;
-    }
-
-    button {
-        margin: 5px 0;
-    }
-
-    .button-row {
-        flex-direction: column;
-    }
 }
