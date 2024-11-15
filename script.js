@@ -1,7 +1,7 @@
 const defaultKey = CryptoJS.enc.Utf8.parse("DefaultFixedKey12345");
 
 // 定义全局变量用于调整压缩和解压次数
-const compressionIterations = 3; // 可根据需要调整压缩次数
+const compressionIterations = 1; // 可根据需要调整压缩次数
 
 // 多语言配置
 const languages = {
