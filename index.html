@@ -11,6 +11,7 @@
     <div class="container">
         <div class="language-switch">
             <button onclick="switchLanguage('zh')">中文</button>
+            <button onclick="switchLanguage('ja')">日本語</button>
             <button onclick="switchLanguage('en')">English</button>
         </div>
 
@@ -38,8 +39,8 @@
 
         <div class="input-group">
             <label for="resultText" id="result-label">结果:</label>
-            <button class="small-button" onclick="copyToClipboard('resultText')" id="result-copy-btn">复制</button>
             <textarea id="resultText" readonly placeholder="加密或解密结果将显示在此"></textarea>
+            <button class="small-button" onclick="copyToClipboard('resultText')" id="result-copy-btn">复制</button>
         </div>
     </div>
     <script src="script.js"></script>

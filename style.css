@@ -1,4 +1,4 @@
-
+/* 全体のスタイル */
 body {
     font-family: Arial, sans-serif;
     background-color: #f4f4f9;
@@ -11,6 +11,7 @@ body {
     min-height: 100vh;
 }
 
+/* コンテナ */
 .container {
     background: #ffffff;
     padding: 20px;
@@ -22,12 +23,14 @@ body {
     box-sizing: border-box;
 }
 
+/* タイトル */
 h1 {
     margin-bottom: 20px;
     color: #007BFF;
     font-size: 1.8em;
 }
 
+/* 入力グループ */
 .input-group {
     margin-bottom: 20px;
     text-align: left;
@@ -54,6 +57,7 @@ textarea[readonly] {
     cursor: not-allowed;
 }
 
+/* ボタン */
 button {
     background-color: #007BFF;
     color: white;
@@ -70,18 +74,21 @@ button:hover {
     background-color: #0056b3;
 }
 
+/* 小さいボタン */
 .small-button {
     padding: 8px 10px;
     font-size: 12px;
     margin-left: 5px;
 }
 
+/* 中くらいのボタン */
 .medium-button {
     padding: 10px 15px;
     font-size: 14px;
     margin-right: 5px;
 }
 
+/* ボタンの行 */
 .button-row {
     display: flex;
     justify-content: space-between;
@@ -89,6 +96,7 @@ button:hover {
     margin-top: 10px;
 }
 
+/* ボタンのグループ */
 .button-group {
     display: flex;
     justify-content: space-between;
