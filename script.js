@@ -40,9 +40,9 @@ const languages = {
 function TextProcessor() {
     const [isProcessing, setIsProcessing] = React.useState(false);
     const [currentLang, setCurrentLang] = React.useState('zh');
-    const CHUNK_SIZE = 3000;
-    const MAX_PARALLEL_CHUNKS = 5;
-    const SAFE_TEXT_LENGTH = 15000;
+    const CHUNK_SIZE = 1000;
+    const BLOCK_SIZE = 10000;
+    const MAX_PARALLEL = 3;
 
     async function getKey(password) {
         const defaultKey = 'DefaultFixedKey12345';
@@ -159,11 +159,16 @@ function TextProcessor() {
         }
     }
 
-    async function processChunksBatch(chunks, password, isEncrypt) {
+    async function processBlock(text, password, isEncrypt) {
+        const chunks = [];
+        for (let i = 0; i < text.length; i += CHUNK_SIZE) {
+            chunks.push(text.slice(i, i + CHUNK_SIZE));
+        }
+        
         const results = [];
-        for (let i = 0; i < chunks.length; i += MAX_PARALLEL_CHUNKS) {
-            const batch = chunks.slice(i, i + MAX_PARALLEL_CHUNKS);
-            const batchPromises = batch.map(async (chunk) => {
+        for (let i = 0; i < chunks.length; i += MAX_PARALLEL) {
+            const batch = chunks.slice(i, i + MAX_PARALLEL);
+            const batchResults = await Promise.all(batch.map(async chunk => {
                 const key = await getKey(password);
                 if (isEncrypt) {
                     const compressedData = await compressText(chunk);
@@ -176,36 +181,20 @@ function TextProcessor() {
                     const combined = new Uint8Array([...iv, ...new Uint8Array(encrypted)]);
                     return uint8ArrayToBase64Url(combined);
                 } else {
-                    try {
-                        const combined = base64UrlToUint8Array(chunk);
-                        const iv = combined.slice(0, 12);
-                        const encrypted = combined.slice(12);
-                        const decrypted = await crypto.subtle.decrypt(
-                            { name: 'AES-GCM', iv },
-                            key,
-                            encrypted
-                        );
-                        return await decompressData(new Uint8Array(decrypted));
-                    } catch (error) {
-                        throw new Error(languages[currentLang].messages.processingError);
-                    }
+                    const combined = base64UrlToUint8Array(chunk);
+                    const iv = combined.slice(0, 12);
+                    const encrypted = combined.slice(12);
+                    const decrypted = await crypto.subtle.decrypt(
+                        { name: 'AES-GCM', iv },
+                        key,
+                        encrypted
+                    );
+                    return await decompressData(new Uint8Array(decrypted));
                 }
-            });
-
-            const batchResults = await Promise.all(batchPromises);
+            }));
             results.push(...batchResults);
         }
-        return results;
-    }
-
-    async function processInChunks(text, password, isEncrypt) {
-        const chunks = isEncrypt 
-            ? Array.from({ length: Math.ceil(text.length / CHUNK_SIZE) }, (_, i) => 
-                text.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE))
-            : text.split('.').filter(chunk => chunk);
-
-        const results = await processChunksBatch(chunks, password, isEncrypt);
-        return isEncrypt ? results.join('.') : results.join('');
+        return results.join(isEncrypt ? '.' : '');
     }
 
     async function handleProcess(isEncrypt) {
@@ -223,27 +212,27 @@ function TextProcessor() {
 
         try {
             let result = '';
-            if (text.length > SAFE_TEXT_LENGTH && isEncrypt) {
-                const parts = Math.ceil(text.length / SAFE_TEXT_LENGTH);
-                const results = [];
-                
-                for (let i = 0; i < parts; i++) {
-                    const start = i * SAFE_TEXT_LENGTH;
-                    const end = Math.min((i + 1) * SAFE_TEXT_LENGTH, text.length);
-                    const partText = text.slice(start, end);
-                    const partResult = await processInChunks(partText, password, true);
-                    results.push(partResult);
+            if (isEncrypt) {
+                const blocks = [];
+                for (let i = 0; i < text.length; i += BLOCK_SIZE) {
+                    const block = text.slice(i, i + BLOCK_SIZE);
+                    const processed = await processBlock(block, password, true);
+                    blocks.push(processed);
                 }
-                
-                result = results.join('|');
-            } else if (text.includes('|') && !isEncrypt) {
-                const parts = text.split('|');
-                const results = await Promise.all(
-                    parts.map(part => processInChunks(part, password, false))
-                );
-                result = results.join('');
+                result = blocks.join('|');
             } else {
-                result = await processInChunks(text, password, isEncrypt);
+                if (text.includes('|')) {
+                    const blocks = text.split('|');
+                    const results = [];
+                    for (const block of blocks) {
+                        if (!block) continue;
+                        const processed = await processBlock(block, password, false);
+                        results.push(processed);
+                    }
+                    result = results.join('');
+                } else {
+                    result = await processBlock(text, password, false);
+                }
             }
 
             const resultTextarea = document.getElementById('result');
@@ -251,7 +240,8 @@ function TextProcessor() {
             autoResize(resultTextarea);
             alert(languages[currentLang].messages.success);
         } catch (error) {
-            alert(error.message);
+            console.error(error);
+            alert(languages[currentLang].messages.processingError);
         } finally {
             setIsProcessing(false);
         }
