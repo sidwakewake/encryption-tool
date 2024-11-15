@@ -40,8 +40,9 @@ const languages = {
 function TextProcessor() {
     const [isProcessing, setIsProcessing] = React.useState(false);
     const [currentLang, setCurrentLang] = React.useState('zh');
-    const CHUNK_SIZE = 5000;
+    const CHUNK_SIZE = 3000;
     const MAX_PARALLEL_CHUNKS = 5;
+    const SAFE_TEXT_LENGTH = 15000;
 
     async function getKey(password) {
         const defaultKey = 'DefaultFixedKey12345';
@@ -128,7 +129,6 @@ function TextProcessor() {
             }
             return compressed;
         } catch (error) {
-            console.error('Compression failed:', error);
             return new TextEncoder().encode(text);
         }
     }
@@ -155,7 +155,6 @@ function TextProcessor() {
             }
             return new TextDecoder().decode(decompressed);
         } catch (error) {
-            console.error('Decompression failed:', error);
             return new TextDecoder().decode(data);
         }
     }
@@ -223,7 +222,30 @@ function TextProcessor() {
         setIsProcessing(true);
 
         try {
-            const result = await processInChunks(text, password, isEncrypt);
+            let result = '';
+            if (text.length > SAFE_TEXT_LENGTH && isEncrypt) {
+                const parts = Math.ceil(text.length / SAFE_TEXT_LENGTH);
+                const results = [];
+                
+                for (let i = 0; i < parts; i++) {
+                    const start = i * SAFE_TEXT_LENGTH;
+                    const end = Math.min((i + 1) * SAFE_TEXT_LENGTH, text.length);
+                    const partText = text.slice(start, end);
+                    const partResult = await processInChunks(partText, password, true);
+                    results.push(partResult);
+                }
+                
+                result = results.join('|');
+            } else if (text.includes('|') && !isEncrypt) {
+                const parts = text.split('|');
+                const results = await Promise.all(
+                    parts.map(part => processInChunks(part, password, false))
+                );
+                result = results.join('');
+            } else {
+                result = await processInChunks(text, password, isEncrypt);
+            }
+
             const resultTextarea = document.getElementById('result');
             resultTextarea.value = result;
             autoResize(resultTextarea);
@@ -302,14 +324,11 @@ function TextProcessor() {
 function switchLanguage(lang) {
     const content = languages[lang];
     document.getElementById('app-title').textContent = content.title;
-    
     window.currentLang = lang;
-    
     ReactDOM.render(
         React.createElement(TextProcessor),
         document.getElementById('root')
     );
-
     document.querySelectorAll('.lang-btn').forEach(btn => {
         if (lang === 'zh') {
             btn.classList.toggle('active', btn.textContent === '中文');
