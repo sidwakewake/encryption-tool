@@ -1,6 +1,6 @@
 const languages = {
     zh: {
-        title: "压缩加密工具",
+        title: "加密与解密工具",
         inputLabel: "请输入文本:",
         passwordLabel: "密码 (可选):",
         resultLabel: "结果:",
@@ -18,7 +18,7 @@ const languages = {
         }
     },
     en: {
-        title: "Encryption Tool",
+        title: "Encryption & Decryption Tool",
         inputLabel: "Enter Text:",
         passwordLabel: "Password (Optional):",
         resultLabel: "Result:",
@@ -35,224 +35,291 @@ const languages = {
             success: "Processing successful!"
         }
     }
- };
- 
- let currentLang = 'zh';
- let isProcessing = false;
- 
- function compressLZ(str) {
-    const dict = {};
-    let data = (str + "").split("");
-    let out = [];
-    let phrase = data[0];
-    let code = 256;
-    
-    for (let i=1; i<data.length; i++) {
-        let curr = data[i];
-        if (dict[phrase + curr] != null) {
-            phrase += curr;
-        } else {
-            out.push(phrase.length > 1 ? dict[phrase] : phrase.charCodeAt(0));
-            dict[phrase + curr] = code;
-            code++;
-            phrase = curr;
+};
+
+function TextProcessor() {
+    const [isProcessing, setIsProcessing] = React.useState(false);
+    const [currentLang, setCurrentLang] = React.useState('zh');
+    const CHUNK_SIZE = 5000;
+    const MAX_PARALLEL_CHUNKS = 5;
+
+    async function getKey(password) {
+        const defaultKey = 'DefaultFixedKey12345';
+        const keyMaterial = await crypto.subtle.importKey(
+            'raw',
+            new TextEncoder().encode(password || defaultKey),
+            { name: 'PBKDF2' },
+            false,
+            ['deriveBits', 'deriveKey']
+        );
+
+        return crypto.subtle.deriveKey(
+            {
+                name: 'PBKDF2',
+                salt: new TextEncoder().encode('salt'),
+                iterations: 100000,
+                hash: 'SHA-256'
+            },
+            keyMaterial,
+            { name: 'AES-GCM', length: 256 },
+            true,
+            ['encrypt', 'decrypt']
+        );
+    }
+
+    function generatePassword() {
+        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        const password = Array(12).fill(0)
+            .map(() => chars[Math.floor(Math.random() * chars.length)])
+            .join('');
+        document.getElementById('password').value = password;
+    }
+
+    function copyText(elementId) {
+        const text = document.getElementById(elementId).value;
+        if (!text) return;
+        navigator.clipboard.writeText(text)
+            .then(() => alert(languages[currentLang].messages.copied))
+            .catch(() => alert(languages[currentLang].messages.copyFailed));
+    }
+
+    function autoResize(textarea) {
+        textarea.style.height = 'auto';
+        textarea.style.height = textarea.scrollHeight + 'px';
+    }
+
+    function uint8ArrayToBase64Url(uint8Array) {
+        return btoa(String.fromCharCode(...uint8Array))
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_')
+            .replace(/=+$/, '');
+    }
+
+    function base64UrlToUint8Array(base64Url) {
+        const base64 = base64Url
+            .replace(/-/g, '+')
+            .replace(/_/g, '/')
+            .padEnd(base64Url.length + (4 - base64Url.length % 4) % 4, '=');
+        return new Uint8Array(
+            atob(base64).split('').map(char => char.charCodeAt(0))
+        );
+    }
+
+    async function compressText(text) {
+        try {
+            const textBytes = new TextEncoder().encode(text);
+            const cs = new CompressionStream('deflate');
+            const writer = cs.writable.getWriter();
+            writer.write(textBytes);
+            writer.close();
+            const compressedChunks = [];
+            const reader = cs.readable.getReader();
+            while (true) {
+                const {value, done} = await reader.read();
+                if (done) break;
+                compressedChunks.push(value);
+            }
+            const totalLength = compressedChunks.reduce((acc, chunk) => acc + chunk.length, 0);
+            const compressed = new Uint8Array(totalLength);
+            let offset = 0;
+            for (const chunk of compressedChunks) {
+                compressed.set(chunk, offset);
+                offset += chunk.length;
+            }
+            return compressed;
+        } catch (error) {
+            console.error('Compression failed:', error);
+            return new TextEncoder().encode(text);
         }
     }
-    
-    out.push(phrase.length > 1 ? dict[phrase] : phrase.charCodeAt(0));
-    
-    const compressedData = new Uint8Array(new Int16Array(out).buffer);
-    return btoa(String.fromCharCode(...compressedData));
- }
- 
- function decompressLZ(str) {
-    const compressedData = new Uint8Array(
-        atob(str).split('').map(char => char.charCodeAt(0))
-    );
-    const data = new Int16Array(compressedData.buffer);
-    
-    const dict = {};
-    const out = [];
-    let code = 256;
-    let phrase = String.fromCharCode(data[0]);
-    out.push(phrase);
-    
-    for (let i=1; i<data.length; i++) {
-        let curr = data[i];
-        let entry;
-        
-        if (curr < 256) {
-            entry = String.fromCharCode(curr);
-        } else if (dict[curr] != null) {
-            entry = dict[curr];
-        } else {
-            entry = phrase + phrase.charAt(0);
+
+    async function decompressData(data) {
+        try {
+            const ds = new DecompressionStream('deflate');
+            const writer = ds.writable.getWriter();
+            writer.write(data);
+            writer.close();
+            const decompressedChunks = [];
+            const reader = ds.readable.getReader();
+            while (true) {
+                const {value, done} = await reader.read();
+                if (done) break;
+                decompressedChunks.push(value);
+            }
+            const totalLength = decompressedChunks.reduce((acc, chunk) => acc + chunk.length, 0);
+            const decompressed = new Uint8Array(totalLength);
+            let offset = 0;
+            for (const chunk of decompressedChunks) {
+                decompressed.set(chunk, offset);
+                offset += chunk.length;
+            }
+            return new TextDecoder().decode(decompressed);
+        } catch (error) {
+            console.error('Decompression failed:', error);
+            return new TextDecoder().decode(data);
         }
-        
-        out.push(entry);
-        dict[code] = phrase + entry.charAt(0);
-        code++;
-        phrase = entry;
     }
-    
-    return out.join('');
- }
- 
- async function getKey(password) {
-    const defaultKey = 'DefaultFixedKey12345';
-    const keyMaterial = await crypto.subtle.importKey(
-        'raw',
-        new TextEncoder().encode(password || defaultKey),
-        { name: 'PBKDF2' },
-        false,
-        ['deriveBits', 'deriveKey']
+
+    async function processChunksBatch(chunks, password, isEncrypt) {
+        const results = [];
+        for (let i = 0; i < chunks.length; i += MAX_PARALLEL_CHUNKS) {
+            const batch = chunks.slice(i, i + MAX_PARALLEL_CHUNKS);
+            const batchPromises = batch.map(async (chunk) => {
+                const key = await getKey(password);
+                if (isEncrypt) {
+                    const compressedData = await compressText(chunk);
+                    const iv = crypto.getRandomValues(new Uint8Array(12));
+                    const encrypted = await crypto.subtle.encrypt(
+                        { name: 'AES-GCM', iv },
+                        key,
+                        compressedData
+                    );
+                    const combined = new Uint8Array([...iv, ...new Uint8Array(encrypted)]);
+                    return uint8ArrayToBase64Url(combined);
+                } else {
+                    try {
+                        const combined = base64UrlToUint8Array(chunk);
+                        const iv = combined.slice(0, 12);
+                        const encrypted = combined.slice(12);
+                        const decrypted = await crypto.subtle.decrypt(
+                            { name: 'AES-GCM', iv },
+                            key,
+                            encrypted
+                        );
+                        return await decompressData(new Uint8Array(decrypted));
+                    } catch (error) {
+                        throw new Error(languages[currentLang].messages.processingError);
+                    }
+                }
+            });
+
+            const batchResults = await Promise.all(batchPromises);
+            results.push(...batchResults);
+        }
+        return results;
+    }
+
+    async function processInChunks(text, password, isEncrypt) {
+        const chunks = isEncrypt 
+            ? Array.from({ length: Math.ceil(text.length / CHUNK_SIZE) }, (_, i) => 
+                text.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE))
+            : text.split('.').filter(chunk => chunk);
+
+        const results = await processChunksBatch(chunks, password, isEncrypt);
+        return isEncrypt ? results.join('.') : results.join('');
+    }
+
+    async function handleProcess(isEncrypt) {
+        if (isProcessing) return;
+
+        const text = document.getElementById('inputText').value.trim();
+        const password = document.getElementById('password').value;
+
+        if (!text) {
+            alert(languages[currentLang].messages.noInput);
+            return;
+        }
+
+        setIsProcessing(true);
+
+        try {
+            const result = await processInChunks(text, password, isEncrypt);
+            const resultTextarea = document.getElementById('result');
+            resultTextarea.value = result;
+            autoResize(resultTextarea);
+            alert(languages[currentLang].messages.success);
+        } catch (error) {
+            alert(error.message);
+        } finally {
+            setIsProcessing(false);
+        }
+    }
+
+    return React.createElement('div', { className: 'processor-container' },
+        React.createElement('div', { className: 'input-group' },
+            React.createElement('div', { className: 'input-header' },
+                React.createElement('label', {}, languages[currentLang].inputLabel),
+                React.createElement('button', {
+                    onClick: () => copyText('inputText'),
+                    className: 'copy-icon'
+                }, languages[currentLang].copyBtn)
+            ),
+            React.createElement('textarea', {
+                id: 'inputText',
+                placeholder: languages[currentLang].inputLabel
+            })
+        ),
+        React.createElement('div', { className: 'input-group' },
+            React.createElement('div', { className: 'input-header' },
+                React.createElement('label', {}, languages[currentLang].passwordLabel),
+                React.createElement('button', {
+                    onClick: () => copyText('password'),
+                    className: 'copy-icon'
+                }, languages[currentLang].copyBtn)
+            ),
+            React.createElement('div', { className: 'password-row' },
+                React.createElement('input', {
+                    type: 'text',
+                    id: 'password',
+                    placeholder: languages[currentLang].passwordLabel
+                }),
+                React.createElement('button', {
+                    onClick: generatePassword,
+                    id: 'generate-btn'
+                }, languages[currentLang].generateBtn)
+            )
+        ),
+        React.createElement('div', { className: 'input-group' },
+            React.createElement('div', { className: 'input-header' },
+                React.createElement('label', {}, languages[currentLang].resultLabel),
+                React.createElement('button', {
+                    onClick: () => copyText('result'),
+                    className: 'copy-icon'
+                }, languages[currentLang].copyBtn)
+            ),
+            React.createElement('textarea', {
+                id: 'result',
+                className: 'auto-resize',
+                readOnly: true,
+                onChange: (e) => autoResize(e.target)
+            })
+        ),
+        React.createElement('div', { className: 'button-group' },
+            React.createElement('button', {
+                onClick: () => handleProcess(true),
+                id: 'encrypt-btn',
+                disabled: isProcessing
+            }, isProcessing ? languages[currentLang].processing : languages[currentLang].encryptBtn),
+            React.createElement('button', {
+                onClick: () => handleProcess(false),
+                id: 'decrypt-btn',
+                disabled: isProcessing
+            }, isProcessing ? languages[currentLang].processing : languages[currentLang].decryptBtn)
+        )
     );
- 
-    return crypto.subtle.deriveKey(
-        {
-            name: 'PBKDF2',
-            salt: new TextEncoder().encode('salt'),
-            iterations: 100000,
-            hash: 'SHA-256'
-        },
-        keyMaterial,
-        { name: 'AES-GCM', length: 256 },
-        true,
-        ['encrypt', 'decrypt']
-    );
- }
- 
- async function handleEncrypt() {
-    if (isProcessing) return;
- 
-    const text = document.getElementById('inputText').value.trim();
-    const password = document.getElementById('password').value;
- 
-    if (!text) {
-        alert(languages[currentLang].messages.noInput);
-        return;
-    }
- 
-    setProcessing(true);
-    
-    try {
-        const compressed = compressLZ(text);
-        const key = await getKey(password);
-        const iv = crypto.getRandomValues(new Uint8Array(12));
-        const encoded = new TextEncoder().encode(compressed);
-        const encrypted = await crypto.subtle.encrypt(
-            { name: 'AES-GCM', iv },
-            key,
-            encoded
-        );
- 
-        const combined = new Uint8Array([...iv, ...new Uint8Array(encrypted)]);
-        document.getElementById('result').value = btoa(String.fromCharCode(...combined));
-        alert(languages[currentLang].messages.success);
-    } catch (error) {
-        console.error(error);
-        alert(languages[currentLang].messages.processingError);
-    } finally {
-        setProcessing(false);
-    }
- }
- 
- async function handleDecrypt() {
-    if (isProcessing) return;
- 
-    const text = document.getElementById('inputText').value.trim();
-    const password = document.getElementById('password').value;
- 
-    if (!text) {
-        alert(languages[currentLang].messages.noInput);
-        return;
-    }
- 
-    setProcessing(true);
- 
-    try {
-        const combined = new Uint8Array(
-            atob(text).split('').map(char => char.charCodeAt(0))
-        );
- 
-        const iv = combined.slice(0, 12);
-        const encrypted = combined.slice(12);
-        const key = await getKey(password);
- 
-        const decrypted = await crypto.subtle.decrypt(
-            { name: 'AES-GCM', iv },
-            key,
-            encrypted
-        );
- 
-        const decoded = new TextDecoder().decode(decrypted);
-        const decompressed = decompressLZ(decoded);
-        document.getElementById('result').value = decompressed;
-        alert(languages[currentLang].messages.success);
-    } catch (error) {
-        console.error(error);
-        alert(languages[currentLang].messages.processingError);
-    } finally {
-        setProcessing(false);
-    }
- }
- 
- function generatePassword() {
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    const password = Array(12).fill(0)
-        .map(() => chars[Math.floor(Math.random() * chars.length)])
-        .join('');
-    document.getElementById('password').value = password;
- }
- 
- async function copyToClipboard() {
-    const text = document.getElementById('result').value;
-    if (!text) return;
- 
-    try {
-        await navigator.clipboard.writeText(text);
-        alert(languages[currentLang].messages.copied);
-    } catch {
-        alert(languages[currentLang].messages.copyFailed);
-    }
- }
- 
- function setProcessing(processing) {
-    isProcessing = processing;
-    const encryptBtn = document.getElementById('encrypt-btn');
-    const decryptBtn = document.getElementById('decrypt-btn');
-    const generateBtn = document.getElementById('generate-btn');
- 
-    [encryptBtn, decryptBtn, generateBtn].forEach(btn => {
-        btn.disabled = processing;
-    });
- 
-    if (processing) {
-        encryptBtn.textContent = languages[currentLang].processing;
-        decryptBtn.textContent = languages[currentLang].processing;
-    } else {
-        encryptBtn.textContent = languages[currentLang].encryptBtn;
-        decryptBtn.textContent = languages[currentLang].decryptBtn;
-    }
- }
- 
- function switchLanguage(lang) {
-    currentLang = lang;
+}
+
+function switchLanguage(lang) {
     const content = languages[lang];
- 
     document.getElementById('app-title').textContent = content.title;
-    document.getElementById('input-label').textContent = content.inputLabel;
-    document.getElementById('password-label').textContent = content.passwordLabel;
-    document.getElementById('result-label').textContent = content.resultLabel;
-    document.getElementById('generate-btn').textContent = content.generateBtn;
-    document.getElementById('encrypt-btn').textContent = content.encryptBtn;
-    document.getElementById('decrypt-btn').textContent = content.decryptBtn;
-    document.getElementById('copy-btn').textContent = content.copyBtn;
- 
+    
+    window.currentLang = lang;
+    
+    ReactDOM.render(
+        React.createElement(TextProcessor),
+        document.getElementById('root')
+    );
+
     document.querySelectorAll('.lang-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.textContent.toLowerCase().includes(lang));
+        if (lang === 'zh') {
+            btn.classList.toggle('active', btn.textContent === '中文');
+        } else {
+            btn.classList.toggle('active', btn.textContent === 'English');
+        }
     });
- }
- 
- // Initialize
- switchLanguage('zh');
+}
+
+ReactDOM.render(
+    React.createElement(TextProcessor),
+    document.getElementById('root')
+);

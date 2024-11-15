@@ -1,268 +1,152 @@
 body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     background-color: #f5f5f5;
     margin: 0;
     padding: 20px;
     color: #333;
- }
- 
- .container {
+}
+
+.container {
     max-width: 800px;
     margin: 0 auto;
     background: white;
     padding: 30px;
     border-radius: 12px;
     box-shadow: 0 2px 10px rgba(0,0,0,0.1);
- }
- 
- .language-switch {
+}
+
+.language-switch {
     text-align: right;
     margin-bottom: 20px;
- }
- 
- button {
-    padding: 10px 20px;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-weight: 500;
-    transition: all 0.2s;
- }
- 
- button:hover {
-    opacity: 0.9;
- }
- 
- button:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
- }
- 
- .lang-btn {
+}
+
+.lang-btn {
     background-color: #f0f0f0;
-    border: none;
     padding: 8px 16px;
     margin-left: 8px;
+    border: none;
     border-radius: 6px;
     cursor: pointer;
-    transition: background-color 0.2s;
- }
- 
- .lang-btn.active {
+}
+
+.lang-btn.active {
     background-color: #007bff;
     color: white;
- }
- 
- h1 {
+}
+
+h1 {
     text-align: center;
     color: #2c3e50;
     margin-bottom: 30px;
-    font-size: 24px;
- }
- 
- .input-group {
-    margin-bottom: 24px;
- }
- 
- label {
-    display: block;
-    margin-bottom: 8px;
-    font-weight: 500;
-    color: #2c3e50;
- }
- 
- textarea {
+}
+
+.input-group {
+    margin-bottom: 1rem;
+}
+
+.input-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.password-row {
+    display: flex;
+    gap: 0.5rem;
+}
+
+textarea {
     width: 100%;
     min-height: 120px;
-    padding: 12px;
+    padding: 0.5rem;
     border: 1px solid #ddd;
     border-radius: 8px;
-    resize: vertical;
     font-family: inherit;
     font-size: 14px;
-    line-height: 1.5;
-    box-sizing: border-box;
- }
- 
- textarea:focus, input:focus {
+    overflow-y: scroll; /* 添加纵向滚动条 */
+    resize: vertical;   /* 允许垂直拉伸 */
+}
+
+textarea.auto-resize {
+    resize: none;
+    overflow-y: hidden;  /* 结果框不需要滚动条 */
+}
+
+textarea:focus, input:focus {
     outline: none;
     border-color: #007bff;
     box-shadow: 0 0 0 3px rgba(0,123,255,0.1);
- }
- 
- .password-row {
-    display: flex;
-    gap: 8px;
- }
- 
- input[type="text"] {
+}
+
+input[type="text"] {
     flex: 1;
     padding: 8px 12px;
     border: 1px solid #ddd;
     border-radius: 6px;
     font-size: 14px;
- }
- 
- .button-group {
+}
+
+.button-group {
     display: flex;
-    gap: 12px;
-    margin-top: 24px;
- }
- 
- #encrypt-btn, #decrypt-btn {
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.button-group button {
     flex: 1;
-    font-size: 16px;
+    padding: 0.5rem 1rem;
+    border-radius: 0.25rem;
+    border: none;
+    cursor: pointer;
+    font-weight: 500;
     color: white;
- }
- 
- #encrypt-btn {
+}
+
+#encrypt-btn {
     background-color: #007bff;
- }
- 
- #decrypt-btn {
+}
+
+#decrypt-btn {
     background-color: #28a745;
- }
- 
- #generate-btn {
+}
+
+#generate-btn {
     background-color: #6c757d;
     color: white;
- }
- 
- #copy-btn {
+}
+
+.copy-icon {
+    padding: 4px 12px;
     background-color: #6c757d;
     color: white;
-    padding: 6px 12px;
-    font-size: 14px;
- }
- 
- .result-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
- }
- 
- #result {
-    background-color: #f8f9fa;
- }
- 
- /* 移动端优化 */
- @media screen and (max-width: 768px) {
-    body {
-        padding: 10px;
-    }
- 
-    .container {
-        padding: 15px;
-    }
-    
-    h1 {
-        font-size: 20px;
-        margin-bottom: 20px;
-    }
- 
-    button {
-        padding: 12px 20px;
-        min-height: 44px;
-        font-size: 16px;
-    }
- 
-    textarea {
-        font-size: 16px;
-        min-height: 100px;
-    }
- 
-    input[type="text"] {
-        font-size: 16px;
-        height: 44px;
-    }
- 
-    .password-row {
-        flex-direction: column;
-        gap: 10px;
-    }
- 
-    #generate-btn {
-        width: 100%;
-        height: 44px;
-    }
- 
-    .result-header {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 10px;
-    }
- 
-    #copy-btn {
-        width: 100%;
-        height: 44px;
-    }
- 
-    .button-group {
-        flex-direction: column;
-        gap: 10px;
-    }
- 
-    #encrypt-btn, #decrypt-btn {
-        width: 100%;
-        height: 44px;
-    }
- 
-    .language-switch {
-        display: flex;
-        gap: 10px;
-        margin-bottom: 15px;
-    }
- 
-    .lang-btn {
-        flex: 1;
-        margin: 0;
-        height: 44px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
- }
- 
- /* 深色模式支持 */
- @media (prefers-color-scheme: dark) {
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+@media (prefers-color-scheme: dark) {
     body {
         background-color: #1a1a1a;
         color: #e0e0e0;
     }
- 
+    
     .container {
         background: #2d2d2d;
     }
- 
+    
     textarea, input[type="text"] {
         background-color: #3d3d3d;
         border-color: #4d4d4d;
         color: #e0e0e0;
     }
- 
-    textarea:focus, input:focus {
-        border-color: #0056b3;
-    }
- 
-    button {
-        opacity: 0.9;
-    }
- 
-    button:hover {
-        opacity: 1;
-    }
- 
-    .lang-btn {
-        background-color: #3d3d3d;
+    
+    h1 {
         color: #e0e0e0;
     }
- 
-    #result {
-        background-color: #3d3d3d;
-    }
- 
-    h1, label {
-        color: #e0e0e0;
-    }
- }
+}

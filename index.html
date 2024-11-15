@@ -2,44 +2,21 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>压缩加密工具</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>加密与解密工具</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
         <div class="language-switch">
-            <button onclick="switchLanguage('zh')">中文</button>
-            <button onclick="switchLanguage('en')">English</button>
+            <button class="lang-btn active" onclick="switchLanguage('zh')">中文</button>
+            <button class="lang-btn" onclick="switchLanguage('en')">English</button>
         </div>
-
-        <h1 id="app-title">压缩加密工具</h1>
-
-        <div class="input-group">
-            <label id="input-label">请输入文本:</label>
-            <textarea id="inputText" placeholder="请输入要加密或解密的文本"></textarea>
-        </div>
-
-        <div class="input-group">
-            <label id="password-label">密码 (可选):</label>
-            <div class="password-row">
-                <input type="text" id="password" placeholder="输入密码或自动生成">
-                <button onclick="generatePassword()" id="generate-btn">生成密码</button>
-            </div>
-        </div>
-
-        <div class="input-group">
-            <div class="result-header">
-                <label id="result-label">结果:</label>
-                <button onclick="copyToClipboard()" id="copy-btn">复制</button>
-            </div>
-            <textarea id="result" readonly placeholder="加密或解密结果将显示在此"></textarea>
-        </div>
-
-        <div class="button-group">
-            <button onclick="handleEncrypt()" id="encrypt-btn">压缩并加密</button>
-            <button onclick="handleDecrypt()" id="decrypt-btn">解密并解压</button>
-        </div>
+        <h1 id="app-title">加密与解密工具</h1>
+        <div id="root"></div>
     </div>
+    <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
