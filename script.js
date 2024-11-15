@@ -1,4 +1,4 @@
-const compressionIterations = 3; // 压缩次数
+const compressionIterations = 1; // 压缩次数
 
 // 生成加密密钥（确保一致性）
 function generateEncryptionKey(password) {
