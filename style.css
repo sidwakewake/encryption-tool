@@ -146,22 +146,16 @@ h1 {
     font-size: 14px;
 }
 
-#encrypt-btn {
+/* 修改为统一使用蓝色样式 */
+#encrypt-btn,
+#decrypt-btn {
     background: #007BFF;
     color: white;
 }
 
-#encrypt-btn:hover {
-    background: #0056b3;
-}
-
-#decrypt-btn {
-    background: #6c757d;
-    color: white;
-}
-
+#encrypt-btn:hover,
 #decrypt-btn:hover {
-    background: #545b62;
+    background: #0056b3;
 }
 
 .button-group button:disabled {
@@ -225,7 +219,12 @@ h1 {
     /* 文本域适配 */
     .input-group textarea {
         min-height: 80px;
-        font-size: 16px; /* 防止iOS自动缩放 */
+        font-size: 16px;
+    }
+
+    /* 输出框文字大小 */
+    #result {
+        font-size: 20px;
     }
 
     /* 复制按钮适配 */
@@ -254,10 +253,6 @@ h1 {
         padding: 12px;
         font-size: 16px;
     }
-
-    #result {
-        font-size: 20px;  /* 手机端字体大小 */
-    }
 }
 
 /* 超小屏幕适配 */
@@ -268,12 +263,6 @@ h1 {
 
     h1 {
         font-size: 18px;
-    }
-
-    .input-group textarea,
-    .input-group input,
-    .button-group button {
-        font-size: 14px;
     }
 }
 
